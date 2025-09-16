@@ -2,32 +2,38 @@ const express = require("express");
 const { MongoClient } = require("mongodb");
 
 const app = express();
-const port = 3000;
+app.use(express.json());
 
-// MongoDB connection URL
-const url = "mongodb://localhost:27017";
-const dbName = "resumeData";
-const client = new MongoClient(url, { useUnifiedTopology: true });
+const MONGO_URI = "mongodb://127.0.0.1:27017";
+const DB_NAME = "myapp";
 
-app.get("/", async (req, res) => {
-  try {
-    // Connect to MongoDB
-    await client.connect();
-    const db = client.db(dbName);
+async function main() {
+  const client = new MongoClient(MONGO_URI);
+  await client.connect();
+  console.log("✅ MongoDB connected");
 
-    console.log("Connected successfully to MongoDB"); // console log
-    res.send(`<h1>Connected successfully to MongoDB</h1>
-                  <p>Using database: ${db.databaseName}</p>`);
-  } catch (err) {
-    console.error("Connection failed:", err);
-    res.send(`<h1>Connection failed</h1><p>${err}</p>`);
-  } finally {
-    // Optional: keep the connection open if you plan CRUD operations
-    // await client.close();
-  }
-});
+  const db = client.db(DB_NAME);
+  const projects = db.collection("projects");
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+  app.post("/api/projects", async (req, res) => {
+    const { name, description } = req.body;
+    if (!name || !description) {
+      return res.status(400).json({ error: "name and description required" });
+    }
+    const newProject = { name, description, createdAt: new Date() };
+    const result = await projects.insertOne(newProject);
+    newProject._id = result.insertedId;
+    res.status(201).json(newProject);
+  });
+
+  app.get("/api/projects", async (req, res) => {
+    const allProjects = await projects.find({}).toArray();
+    res.json(allProjects);
+  });
+
+  app.listen(3000, () =>
+    console.log("🚀 Server running on http://localhost:3000")
+  );
+}
+
+main().catch(console.error);
